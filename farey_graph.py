@@ -9,7 +9,7 @@ start_time = time.time()
 A=[[1,1],[0,1]]
 B=[[0,1],[1,0]]
 Ainv=np.linalg.inv(A)
-Binv=np.linalg.inv(B)
+# note that B is its own inverse so we do not need to introduce it 
 
 ### function for matrix product 
 
@@ -27,6 +27,7 @@ def mobius_transformation(M,v):
     # M is a matrix which represents a mobius transformation
     # v is a vector in R^2 which will be our model for the complex plane
     # via the bijection [x,y] <-> x+iy
+    # output will be a vector
     a=M[0][0]
     b=M[0][1]
     c=M[1][0]
@@ -35,28 +36,59 @@ def mobius_transformation(M,v):
     y=v[1]
     numerator_real_part = (a*x+b)*(c*x+d)+a*c*y*y
     numerator_imaginary_part = (a*d-b*c-a*c*x)*y
-    denomenator = (c*x+d)**2+(c*y)**2
-    return [numerator_real_part/denomenator,numerator_imaginary_part/denomenator]
+    denominator = (c*x+d)**2+(c*y)**2
+#    if denominator!=0:
+    return [numerator_real_part/denominator,numerator_imaginary_part/denominator]
+#    else:
 
 # need to upgrade this function so that it can also act on vertical
 # geodesics
 
-def mobius_of_geodesic(M,l,height='3'):
+def mobius_of_geodesic(M,r,t,height=4):
     # M is a matrix which represents a mobius transformation
-    # l is an array two distinct vectors which represent end points of
-    # geodesic in the upper half plane. If the vectors have the same
-    # horizontal coordinate, that means the geodesic is a vertical geodesic 
-#    a=M[0][0]
-#    b=M[0][1]
-#    c=M[1][0]
-#    d=M[1][1]
-    x_minus=l[0]
-    x_plus=l[1]
-    return [mobius_transformation(M,x_minus),mobius_transformation(M,x_plus)]
+    # a,b are distinct vectors with non-negative vertical coordinate. 
+    # the function should calculate the geodesic from a to b and return the
+    # pair of endpoints at infinity of the geodesic - except if the
+    # geodesic is a vertical line, then one of the endpoints will have
+    # vertical coordinate equal to the height (this will represent
+    # infinity) 
+
+
+    # for the moment I am going to assume that if a,b have different
+    # horizontal coordinates, then a,b are both on
+    # the real axis. It's much simpler. In the long run, would be
+    # nice to have a function which takes any two points and
+    # calculates their geodesic orthocircle
+    r_hor=r[0]
+    r_vert=r[1]
+    t_hor=t[0]
+    t_vert=t[1]
+    a=M[0][0]
+    b=M[0][1]
+    c=M[1][0]
+    d=M[1][1]
+    if r_hor==t_hor:
+        if c==0:
+            endpoint1=mobius_transformation(M,[r_hor,0])
+            endpoint2=mobius_transformation(M,[r_hor,height])
+        else: 
+            if c*r_hor+d==0:
+                endpoint1=[a/c,height]#mobius_transformation(M,[r_hor,0])
+                endpoint2=[a/c,0.]
+            else:
+                endpoint1=mobius_transformation(M,[r_hor,0])
+                endpoint2=[a/c,0.]
+    else:
+        endpoint1=mobius_transformation(M,r)
+        endpoint2=mobius_transformation(M,t)
+    return [endpoint1,endpoint2]
+
+
+#print(mobius_of_geodesic(mp([A,B]),[1,3],[1,0]))
 
 ### generate the group
 
-def group_elts(n,generators=[A,B,Ainv,Binv]):
+def group_elts(n,generators=[A,B,Ainv]):
     list_these_matrices=[ [] for i in range(n+1)]
     list_these_matrices[0]=[(np.identity(len(generators[0]))).tolist()]
     with_duplicate_matrices=[ [] for i in range(n+1)]
@@ -76,9 +108,9 @@ def group_elts(n,generators=[A,B,Ainv,Binv]):
 
 #### draw some lines
 #
-#def draw_lines(list_of_vectors, this_color='black'):
-#    for i in range(len(list_of_vectors)-1):
-#        plt.plot([list_of_vectors[i][0],list_of_vectors[i+1][0]],[list_of_vectors[i][1],list_of_vectors[i+1][1]], color=this_color)
+def draw_lines(list_of_vectors, default_color='black',default_linewidth=1):
+    for i in range(len(list_of_vectors)-1):
+        plt.plot([list_of_vectors[i][0],list_of_vectors[i+1][0]],[list_of_vectors[i][1],list_of_vectors[i+1][1]], color=default_color, linewidth=default_linewidth)
 #
 #
 #draw_lines([[-3,0],[3,0]])
@@ -88,10 +120,61 @@ def group_elts(n,generators=[A,B,Ainv,Binv]):
 #n=3
 #for M in group_elts(n):
 
-patches.Arc((0,0), 1, 1, 0.0, 0.0, 359.9)
-#matplotlib.patches.Arc(xy, width, height, angle=0.0, theta1=0.0, theta2=360.0,
+##### draw a geodesic orthocircle
+def orthocircle(a,b,default_color='black',default_linewidth=1):
+    # a and b are real numbers
+    center=(a+b)/2
+    radius=abs(a-b)
+    return patches.Arc((center,0), radius, radius, 0.0, 0.0, 180, color=default_color, linewidth=default_linewidth)
+
+#geodesic= patches.Arc((0,0), 1, 1, 0.0, 0.0, 180)
+#patches.Arc((xcenter,ycenter), width, height, angle=0.0, theta1=0.0,
+#theta2=360.0)
+
+def draw_geodesic(vectors, default_linewidth=1):
+    v=vectors[0]
+    w=vectors[1]
+    v_hor=v[0]
+    v_vert=abs(v[1])
+    w_hor=w[0]
+    w_vert=abs(w[1])
+    if v_hor==w_hor:
+#        draw_lines([v,w])
+        draw_lines([[v_hor,v_vert],[w_hor,w_vert]],'black',default_linewidth)
+    else:
+        ax.add_patch(orthocircle(v_hor,w_hor,'black',default_linewidth))
+    
+
+fig = plt.figure()
+ax = fig.add_subplot()
+
+#ax.add_patch(orthocircle(-3,1))
+#ax.add_patch(orthocircle(-1,1))
+
+lw=.3
+
+draw_lines([[-3,0],[3,0]])
+draw_lines([[0,4],[0,0]],'black',lw)
+
+n=15
+for G in group_elts(n):
+    draw_geodesic(mobius_of_geodesic(G, [0,4],[0,0]),lw)
+
+#print(group_elts(n))
+
+#draw_geodesic(mobius_of_geodesic(A, [0,4],[0,0]))
+#draw_geodesic(mobius_of_geodesic(Ainv, [0,4],[0,0]))
+#draw_geodesic(mobius_of_geodesic(B, [0,4],[0,0]))
+
+
+#draw_geodesic([[1,4],[1,0]])
+#draw_geodesic([[2,0],[1,0]])
 
 axes = plt.gca()
 axes.set_xlim([-2.2,2.2])
-axes.set_ylim([-.2,2])
+axes.set_ylim([-.2,2.2])
+
+ax.set_aspect("equal")
+
+
 plt.show()
